@@ -1,0 +1,16 @@
+[package]
+name = "rust-basics"
+version = "0.1.0"
+edition = "2021"
+
+# Har concept ka apna alag file hai src/bin/ me.
+# Har file ek independent binary hai, isliye alag alag run hoti hai.
+#
+#   cargo run --bin 01_variables
+#   cargo run --bin 02_data_types
+#   ... waghera
+#
+# Sab ek saath check/compile karne ke liye:
+#   cargo build
+
+[dependencies]
