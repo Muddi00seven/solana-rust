@@ -1,0 +1,8 @@
+/target
+node_modules
+.anchor
+test-ledger
+.env
+.wallet
+*.log
+last-campaign.json

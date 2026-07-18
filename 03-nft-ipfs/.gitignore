@@ -1,0 +1,11 @@
+/target
+node_modules
+.anchor
+test-ledger
+.env
+.wallet
+*.log
+assets/*.png
+assets/*.jpg
+assets/*.jpeg
+pending-mint.json

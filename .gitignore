@@ -1,0 +1,16 @@
+/target
+**/target
+node_modules
+**/node_modules
+.anchor
+**/.anchor
+test-ledger
+**/test-ledger
+.env
+**/.env
+.wallet
+**/.wallet
+*.log
+.DS_Store
+.yarn
+**/*.tsbuildinfo
