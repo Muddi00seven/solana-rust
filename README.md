@@ -15,6 +15,133 @@ Suggested pacing: one folder per class session (~2-3 hours each), with
 students doing the install (project 1, section 1) as homework before
 session 1 so lecture time goes to concepts, not `brew install` waiting.
 
+## Installation Guide (do this once per machine)
+
+You need four things, in this order: **Node.js**, **Rust**, the **Solana
+CLI**, and **Anchor**. Each depends on the previous one being on your
+`PATH`, so install top to bottom and open a fresh terminal after each step
+if a command "isn't found."
+
+### Windows
+
+Solana's build tooling (`cargo-build-sbf`) is Linux-first and isn't
+reliably supported on native Windows/PowerShell. **Use WSL2** (Windows
+Subsystem for Linux) - it gives you a real Ubuntu environment inside
+Windows, and every command below then becomes identical to the Mac/Linux
+steps.
+
+**Step 1 - Install WSL2 + Ubuntu**
+
+1. Open PowerShell **as Administrator** and run:
+   ```powershell
+   wsl --install
+   ```
+2. Restart your computer when prompted.
+3. After restart, Ubuntu opens automatically and asks you to create a
+   username and password (this is separate from your Windows login - pick
+   anything, you'll use it for `sudo`).
+4. From now on, open **Ubuntu** from the Start menu (not PowerShell/CMD)
+   for every command in this guide.
+
+**Step 2 - Update Ubuntu and install build tools**
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential pkg-config libssl-dev curl git
+```
+
+**Step 3 onward:** follow the **"Mac / Linux (WSL)"** section below
+exactly as written - every command is the same inside WSL's Ubuntu shell.
+
+**Editing files:** install [VS Code](https://code.visualstudio.com/) on
+the Windows side, then the **WSL extension** (Microsoft) - open your
+project with `code .` from inside the Ubuntu terminal and VS Code will
+connect to WSL automatically, so you still get a normal Windows GUI editor
+against the Linux toolchain.
+
+### Mac / Linux (WSL)
+
+**Step 1 - Node.js**
+
+Use [nvm](https://github.com/nvm-sh/nvm) so you can manage Node versions
+cleanly (avoids the classic "installed with sudo, npm install now needs
+sudo too" mess):
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc   # or ~/.zshrc if you use zsh (default on modern Mac)
+nvm install 20     # Node 20 LTS
+nvm use 20
+node --version     # should print v20.x.x
+npm --version
+```
+Then install Yarn (the projects in this repo use it):
+```bash
+npm install -g yarn
+```
+
+**Step 2 - Xcode Command Line Tools (Mac only)**
+
+Rust and several native npm packages need a C compiler:
+```bash
+xcode-select --install
+```
+(Skip this on WSL/Linux - `build-essential` from the Windows section above
+already covers it.)
+
+**Step 3 - Rust**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+Press `1` (default install) when prompted, then:
+```bash
+source "$HOME/.cargo/env"
+rustc --version    # e.g. rustc 1.85.0
+cargo --version
+```
+
+**Step 4 - Solana CLI**
+```bash
+sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+```
+The installer prints a line telling you to add it to your `PATH` - do
+that, then restart your terminal (or `source` your shell config) and
+confirm:
+```bash
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+solana --version   # e.g. solana-cli 2.1.16
+```
+Add that `export PATH=...` line to your `~/.bashrc` / `~/.zshrc` so it
+persists across terminal sessions.
+
+**Step 5 - Anchor (via AVM, the Anchor Version Manager)**
+```bash
+cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+avm install 0.30.1
+avm use 0.30.1
+anchor --version   # anchor-cli 0.30.1
+```
+This step compiles Anchor from source, so it's the slowest install here -
+expect several minutes.
+
+### Verify everything at once
+
+Run this after finishing either path above - all six should print a
+version, not "command not found":
+```bash
+node --version && npm --version && yarn --version && \
+rustc --version && cargo --version && \
+solana --version && anchor --version
+```
+
+### Common install problems
+
+| Symptom | Fix |
+|---|---|
+| `command not found` right after installing something | Open a **new** terminal tab/window, or run `source ~/.bashrc` (`~/.zshrc` on Mac zsh) - installers edit your shell config file, which only re-loads in new sessions |
+| `avm install 0.30.1` fails with a linker/compiler error | Re-run Step 2 (Xcode Command Line Tools) / Step 2 apt packages - Anchor compiles from source and needs a working C toolchain |
+| `wsl --install` says WSL is already installed but Ubuntu won't open | Run `wsl --install -d Ubuntu` from an admin PowerShell to install just the Ubuntu distro |
+| Node/npm permission errors (`EACCES`) | You installed Node with `sudo`/the OS package manager instead of `nvm` - uninstall it and redo Step 1 with `nvm` |
+| `anchor build` fails with `edition2024` or an `rustc ... is not supported` error | This is a separate, expected issue - see "The toolchain gotcha every student will hit" further down this README, not an installation problem |
+
 ## Before class: assign this as pre-work
 
 Rust Book chapters 1-6 (ownership, structs, enums, `Result`/`Option`) or
