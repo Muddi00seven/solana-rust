@@ -55,9 +55,11 @@ async function main() {
 
   console.log(`Minting ${humanAmount} tokens to ${recipient.toBase58()}`);
 
+  // .accountsPartial() - see the comment in create-token.ts for why this is
+  // used instead of .accounts() with this Anchor version.
   const sig = await program.methods
     .mintToWallet(rawAmount)
-    .accounts({
+    .accountsPartial({
       admin: admin.publicKey,
       mint: mintPubkey,
       mintAuthority,

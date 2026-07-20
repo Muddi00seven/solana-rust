@@ -6,6 +6,7 @@
     "wallet:from-env": "ts-node scripts/env-wallet.ts",
     "create-token": "ts-node scripts/create-token.ts",
     "mint": "ts-node scripts/mint-token.ts",
+    "deploy": "yarn wallet:from-env && anchor deploy --provider.cluster devnet",
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
   },
   "dependencies": {

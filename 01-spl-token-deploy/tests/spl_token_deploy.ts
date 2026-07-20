@@ -8,6 +8,10 @@ import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { assert } from "chai";
 import { SplTokenDeploy } from "../target/types/spl_token_deploy";
 
+const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
+  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+);
+
 describe("spl_token_deploy", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -24,13 +28,19 @@ describe("spl_token_deploy", () => {
       [Buffer.from("mint_authority"), mint.publicKey.toBuffer()],
       program.programId
     );
+    const [metadata] = PublicKey.findProgramAddressSync(
+      [Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), mint.publicKey.toBuffer()],
+      TOKEN_METADATA_PROGRAM_ID
+    );
 
     await program.methods
-      .createToken(decimals)
-      .accounts({
+      .createToken(decimals, "Test Token", "TST", "")
+      .accountsPartial({
         admin: admin.publicKey,
         mint: mint.publicKey,
         mintAuthority,
+        metadata,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -52,7 +62,7 @@ describe("spl_token_deploy", () => {
 
     await program.methods
       .mintToWallet(amount)
-      .accounts({
+      .accountsPartial({
         admin: admin.publicKey,
         mint: mint.publicKey,
         mintAuthority,
@@ -82,7 +92,7 @@ describe("spl_token_deploy", () => {
     try {
       await program.methods
         .mintToWallet(new anchor.BN(1))
-        .accounts({
+        .accountsPartial({
           admin: impostor.publicKey,
           mint: mint.publicKey,
           mintAuthority,

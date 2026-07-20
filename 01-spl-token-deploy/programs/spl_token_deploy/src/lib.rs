@@ -1,5 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::metadata::{
+    create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
+    Metadata,
+};
 use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
 
 // After your first `anchor build`, run `anchor keys list` and paste the real
@@ -15,17 +19,84 @@ pub mod spl_token_deploy {
     /// that's the whole point of doing this via Anchor instead of just
     /// running `spl-token create-token` from the CLI: minting logic can now
     /// be gated by whatever program rules you want.
-    pub fn create_token(ctx: Context<CreateToken>, decimals: u8) -> Result<()> {
+    pub fn create_token(
+        ctx: Context<CreateToken>,
+        decimals: u8,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        require!(name.chars().count() <= 32, TokenDeployError::NameTooLong);
+        require!(symbol.chars().count() <= 10, TokenDeployError::SymbolTooLong);
+        require!(uri.chars().count() <= 200, TokenDeployError::UriTooLong);
+
+        // Grab everything we need as plain values *before* taking a mutable
+        // borrow of mint_authority - otherwise that borrow stays alive for
+        // the rest of the function (its last use is the msg! at the bottom)
+        // and blocks every other `ctx.accounts.mint_authority...` access in
+        // between (classic borrow-checker vs. Anchor's Context shape).
+        let admin_key = ctx.accounts.admin.key();
+        let mint_key = ctx.accounts.mint.key();
+        let bump = ctx.bumps.mint_authority;
+
         let mint_authority = &mut ctx.accounts.mint_authority;
-        mint_authority.admin = ctx.accounts.admin.key();
-        mint_authority.mint = ctx.accounts.mint.key();
-        mint_authority.bump = ctx.bumps.mint_authority;
+        mint_authority.admin = admin_key;
+        mint_authority.mint = mint_key;
+        mint_authority.bump = bump;
+        let mint_authority_key = mint_authority.key();
+        // `mint_authority` (the &mut binding) isn't touched again after this
+        // point, so its borrow ends here - everything below uses fresh
+        // `ctx.accounts...` field accesses instead.
+
+        // The base SPL Mint account has no name/symbol field at all - that's
+        // Metaplex Token Metadata's job. We CPI into it here so the token
+        // gets a real name/symbol the moment it's created. `mint_authority`
+        // is a PDA (no private key), so - same trick as mint_to_wallet - we
+        // sign this CPI with its seeds instead of a wallet signature.
+        let seeds: &[&[u8]] = &[b"mint_authority", mint_key.as_ref(), &[bump]];
+        let signer_seeds: &[&[&[u8]]] = &[seeds];
+
+        let data = DataV2 {
+            name: name.clone(),
+            symbol: symbol.clone(),
+            uri,
+            seller_fee_basis_points: 0,
+            creators: None,
+            collection: None,
+            uses: None,
+        };
+
+        create_metadata_accounts_v3(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_metadata_program.to_account_info(),
+                CreateMetadataAccountsV3 {
+                    metadata: ctx.accounts.metadata.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    mint_authority: ctx.accounts.mint_authority.to_account_info(),
+                    payer: ctx.accounts.admin.to_account_info(),
+                    // admin (a real wallet, already a signer on this tx) is the
+                    // update authority, NOT the PDA - so you can rename/update
+                    // this token later straight from a wallet or the Metaplex
+                    // CLI without ever touching this program again.
+                    update_authority: ctx.accounts.admin.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            data,
+            true,  // is_mutable - you can update name/symbol/uri later
+            true,  // update_authority_is_signer
+            None,  // collection_details - None = not part of a Metaplex Collection (that's an NFT-collection concept)
+        )?;
 
         msg!(
-            "Created mint {} with {} decimals, authority PDA {}",
-            ctx.accounts.mint.key(),
+            "Created mint {} ('{}' / {}) with {} decimals, authority PDA {}",
+            mint_key,
+            name,
+            symbol,
             decimals,
-            mint_authority.key()
+            mint_authority_key
         );
         Ok(())
     }
@@ -67,7 +138,7 @@ pub mod spl_token_deploy {
 }
 
 #[derive(Accounts)]
-#[instruction(decimals: u8)]
+#[instruction(decimals: u8, name: String, symbol: String, uri: String)]
 pub struct CreateToken<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -95,6 +166,19 @@ pub struct CreateToken<'info> {
     )]
     pub mint_authority: Account<'info, MintAuthority>,
 
+    /// CHECK: this is the Metaplex Metadata PDA for `mint`. We don't
+    /// deserialize it ourselves - the `create_metadata_accounts_v3` CPI
+    /// (owned by `token_metadata_program`) validates and initializes it. We
+    /// only need to prove *we* derived the same address Metaplex expects.
+    #[account(
+        mut,
+        seeds = [b"metadata", token_metadata_program.key().as_ref(), mint.key().as_ref()],
+        bump,
+        seeds::program = token_metadata_program.key(),
+    )]
+    pub metadata: UncheckedAccount<'info>,
+
+    pub token_metadata_program: Program<'info, Metadata>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
@@ -154,4 +238,10 @@ pub enum TokenDeployError {
     ZeroAmount,
     #[msg("Only the admin who created this token can mint more of it")]
     NotAdmin,
+    #[msg("Name must be at most 32 characters (Metaplex's on-chain limit)")]
+    NameTooLong,
+    #[msg("Symbol must be at most 10 characters (Metaplex's on-chain limit)")]
+    SymbolTooLong,
+    #[msg("URI must be at most 200 characters (Metaplex's on-chain limit)")]
+    UriTooLong,
 }

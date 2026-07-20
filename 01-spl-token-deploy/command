@@ -1,0 +1,10 @@
+cd 01-spl-token-deploy
+anchor deploy --provider.cluster devnet
+
+yarn deploy
+yarn create-token
+yarn mint
+
+
+add recipient wallet address here
+yarn mint -- 3Ko4XsDgmBhBT45hGDVXTfC3GSY5fvzfVw6UAeZCANxX 5000
