@@ -8,6 +8,9 @@ test-ledger
 **/test-ledger
 .env
 **/.env
+**/.env.*
+!**/.env*.example
+*.bak
 .wallet
 **/.wallet
 *.log
